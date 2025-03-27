@@ -102,14 +102,14 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       selbstbeteiligungBeitrag: 0,
       spezialTarif: "",
       tarif: "",
-      isKV: false,
+      isKV: true,
       showOP: true,
       pferd: true,
       vuz: true,
       disableSbCheckboxKv: false,
       disableSbCheckboxOp: false,
       showAbschlussButton: true,
-      tierartParam: "Katze",
+      tierartParam: "Hund",
       hunderasse: hunderasse,
       hunderassenList: [hunderasse],
       geburtsdatum: formattedGeburtsdatum,
@@ -194,49 +194,24 @@ app.post("/api/dog/tarifierung", async (req, res) => {
 
     console.log("Fetching Data from Barmenia API...")
 
-    const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
-    const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
-    console.log("Fetch from ", apiUrl, " was successfull.")
-    const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
-    const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
+    let kvResponseOhneSb
+    let kvResponseMitSb
+    let tarifBeitraegeKvOhneSb
+    let tarifBeitraegeKvMitSb
 
-    // fill into finalResponses
-    tarifBeitraegeKvOhneSb.forEach((element) => {
-      switch (element.tarifInfo.name) {
-        case "Basis":
-          finalResponses.basis.beitragOhneSb = element.beitrag
-          break
-        case "Top":
-          finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
-          break
-        case "Premium":
-          finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
-          break
-        case "Premium Plus":
-          break
-        default:
-          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-          break
-      }
-    })
-    tarifBeitraegeKvMitSb.forEach((element) => {
-      switch (element.tarifInfo.name) {
-        case "Basis":
-          finalResponses.basis.beitragMitSb = element.beitrag
-          break
-        case "Top":
-          finalResponses.top.beitragMitSbOhneZahn = element.beitrag
-          break
-        case "Premium":
-          finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
-          break
-        case "Premium Plus":
-          break
-        default:
-          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-          break
-      }
-    })
+    try {
+      kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
+      console.log("Fetch from ", apiUrl, " for kvResponseOhneSb was successfull.")
+    } catch (error) {
+      console.log(error.message)
+    }
+
+    try {
+      kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
+      console.log("Fetch from ", apiUrl, " for kvResponseMitSb was successfull.")
+    } catch (error) {
+      console.log(error.message)
+    }
 
     // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
     finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
@@ -251,6 +226,57 @@ app.post("/api/dog/tarifierung", async (req, res) => {
 
     finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
     finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+
+    // fill into finalResponses
+    try {
+      tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
+
+      tarifBeitraegeKvOhneSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragOhneSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
+    } catch (error) {
+      console.log(error.message)
+    }
+
+    try {
+      tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
+
+      tarifBeitraegeKvMitSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragMitSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
+    } catch (error) {
+      console.log(error)
+    }
 
     // Final return after fetching all data
 
@@ -272,7 +298,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitSbMitZahn was successfull.")
       return tarifBeitragPremiumMitSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -283,7 +309,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumOhneSbMitZahn was successfull.")
       return tarifBeitragPremiumOhneSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -294,7 +320,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitSbMitZahn was successfull.")
       return tarifBeitragTopMitSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -305,7 +331,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlTopMitZahn, " for TopOhneSbMitZahn was successfull.")
       return tarifBeitragTopOhneSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -316,7 +342,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrl, " for OpOhneSb was successfull.")
       return tarifBeitragOpOhneSb
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -327,7 +353,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrl, " for OpMitSb was successfull.")
       return tarifBeitragOpMitSb
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 })
@@ -544,49 +570,24 @@ app.post("/api/cat/tarifierung", async (req, res) => {
 
     console.log("Fetching Data from Barmenia API...")
 
-    const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
-    const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
-    console.log("Fetch from ", apiUrl, " was successfull.")
-    const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
-    const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
+    let kvResponseOhneSb
+    let kvResponseMitSb
+    let tarifBeitraegeKvOhneSb
+    let tarifBeitraegeKvMitSb
 
-    // fill into finalResponses
-    tarifBeitraegeKvOhneSb.forEach((element) => {
-      switch (element.tarifInfo.name) {
-        case "Basis":
-          finalResponses.basis.beitragOhneSb = element.beitrag
-          break
-        case "Top":
-          finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
-          break
-        case "Premium":
-          finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
-          break
-        case "Premium Plus":
-          break
-        default:
-          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-          break
-      }
-    })
-    tarifBeitraegeKvMitSb.forEach((element) => {
-      switch (element.tarifInfo.name) {
-        case "Basis":
-          finalResponses.basis.beitragMitSb = element.beitrag
-          break
-        case "Top":
-          finalResponses.top.beitragMitSbOhneZahn = element.beitrag
-          break
-        case "Premium":
-          finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
-          break
-        case "Premium Plus":
-          break
-        default:
-          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-          break
-      }
-    })
+    try {
+      kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
+      console.log("Fetch from ", apiUrl, " for kvResponseOhneSb was successfull.")
+    } catch (error) {
+      console.log(error.message)
+    }
+
+    try {
+      kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
+      console.log("Fetch from ", apiUrl, " for kvResponseMitSb was successfull.")
+    } catch (error) {
+      console.log(error.message)
+    }
 
     // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
     finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
@@ -601,6 +602,57 @@ app.post("/api/cat/tarifierung", async (req, res) => {
 
     finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
     finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+
+    // fill into finalResponses
+    try {
+      tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
+
+      tarifBeitraegeKvOhneSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragOhneSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
+    } catch (error) {
+      console.log(error.message)
+    }
+
+    try {
+      tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
+
+      tarifBeitraegeKvMitSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragMitSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
+    } catch (error) {
+      console.log(error)
+    }
 
     // Final return after fetching all data
 
@@ -622,7 +674,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitSbMitZahn was successfull.")
       return tarifBeitragPremiumMitSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -633,7 +685,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumOhneSbMitZahn was successfull.")
       return tarifBeitragPremiumOhneSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -644,7 +696,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitSbMitZahn was successfull.")
       return tarifBeitragTopMitSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -655,7 +707,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrlTopMitZahn, " for TopOhneSbMitZahn was successfull.")
       return tarifBeitragTopOhneSbMitZahn[0].beitrag
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -666,7 +718,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrl, " for OpOhneSb was successfull.")
       return tarifBeitragOpOhneSb
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 
@@ -677,7 +729,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       console.log("Fetch from ", apiUrl, " for OpMitSb was successfull.")
       return tarifBeitragOpMitSb
     } catch (error) {
-      return error.message
+      return "ERROR"
     }
   }
 })
