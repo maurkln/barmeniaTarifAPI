@@ -188,78 +188,70 @@ app.post("/api/dog/tarifierung", async (req, res) => {
   }
 
   try {
-    if (isDogTooOldForKv) {
-      console.log("Hund ist zu alt für KV")
-      return "Hund ist zu alt für KV"
-    }
-    if (isOlderDog) {
-      console.log("Hund ist zu alt für OP")
-      return "Hund ist zu alt für OP"
-    }
     // alle tarife fetches, standard
-    if (!isDogTooOldForAll) {
-      // 1. und 2. fetch API KV ohne SB und mit sb
 
-      console.log("Fetching Data from Barmenia API...")
+    // 1. und 2. fetch API KV ohne SB und mit sb
 
-      const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
-      const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
-      console.log("Fetch from ", apiUrl, " was successfull.")
-      const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
-      const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
+    console.log("Fetching Data from Barmenia API...")
 
-      // fill into finalResponses
-      tarifBeitraegeKvOhneSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragOhneSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
-      tarifBeitraegeKvMitSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragMitSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
+    const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
+    const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
+    console.log("Fetch from ", apiUrl, " was successfull.")
+    const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
+    const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
 
-      // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
-      finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
-      finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
+    // fill into finalResponses
+    tarifBeitraegeKvOhneSb.forEach((element) => {
+      switch (element.tarifInfo.name) {
+        case "Basis":
+          finalResponses.basis.beitragOhneSb = element.beitrag
+          break
+        case "Top":
+          finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
+          break
+        case "Premium":
+          finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
+          break
+        case "Premium Plus":
+          break
+        default:
+          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+          break
+      }
+    })
+    tarifBeitraegeKvMitSb.forEach((element) => {
+      switch (element.tarifInfo.name) {
+        case "Basis":
+          finalResponses.basis.beitragMitSb = element.beitrag
+          break
+        case "Top":
+          finalResponses.top.beitragMitSbOhneZahn = element.beitrag
+          break
+        case "Premium":
+          finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
+          break
+        case "Premium Plus":
+          break
+        default:
+          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+          break
+      }
+    })
 
-      // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
+    // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
+    finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
+    finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
 
-      finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
-      finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
+    // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
 
-      // Zuletzt die fetches an op schutz
+    finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
+    finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
 
-      finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
-      finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
-    }
+    // Zuletzt die fetches an op schutz
+
+    finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
+    finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+
     // Final return after fetching all data
 
     console.log("Successfully fetched all data from API. Final Response to client:")
@@ -546,78 +538,70 @@ app.post("/api/cat/tarifierung", async (req, res) => {
   }
 
   try {
-    if (isCatTooOldForKv) {
-      console.log("Katze ist zu alt für KV")
-      return "Katze ist zu alt für KV"
-    }
-    if (isCatTooOldForOp) {
-      console.log("Katze ist zu alt für OP")
-      return "Katze ist zu alt für OP"
-    }
     // alle tarife fetches, standard
-    if (!isOlderCatOnlySB && !isCatTooOldForKv) {
-      // 1. und 2. fetch API KV ohne SB und mit sb
 
-      console.log("Fetching Data from Barmenia API...")
+    // 1. und 2. fetch API KV ohne SB und mit sb
 
-      const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
-      const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
-      console.log("Fetch from ", apiUrl, " was successfull.")
-      const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
-      const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
+    console.log("Fetching Data from Barmenia API...")
 
-      // fill into finalResponses
-      tarifBeitraegeKvOhneSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragOhneSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
-      tarifBeitraegeKvMitSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragMitSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
+    const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
+    const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
+    console.log("Fetch from ", apiUrl, " was successfull.")
+    const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
+    const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
 
-      // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
-      finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
-      finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
+    // fill into finalResponses
+    tarifBeitraegeKvOhneSb.forEach((element) => {
+      switch (element.tarifInfo.name) {
+        case "Basis":
+          finalResponses.basis.beitragOhneSb = element.beitrag
+          break
+        case "Top":
+          finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
+          break
+        case "Premium":
+          finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
+          break
+        case "Premium Plus":
+          break
+        default:
+          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+          break
+      }
+    })
+    tarifBeitraegeKvMitSb.forEach((element) => {
+      switch (element.tarifInfo.name) {
+        case "Basis":
+          finalResponses.basis.beitragMitSb = element.beitrag
+          break
+        case "Top":
+          finalResponses.top.beitragMitSbOhneZahn = element.beitrag
+          break
+        case "Premium":
+          finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
+          break
+        case "Premium Plus":
+          break
+        default:
+          console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+          break
+      }
+    })
 
-      // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
+    // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
+    finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
+    finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
 
-      finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
-      finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
+    // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
 
-      // Zuletzt die fetches an op schutz
+    finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
+    finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
 
-      finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
-      finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
-    }
+    // Zuletzt die fetches an op schutz
+
+    finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
+    finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+
     // Final return after fetching all data
 
     console.log("Successfully fetched all data from API. Final Response to client:")
