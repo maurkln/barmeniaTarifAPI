@@ -12,6 +12,10 @@ app.use(bodyParser.json())
 // app.use(cors({ origin: ["http://localhost:5173", "null", "https://pfoteplus.de", "http://31.17.172.189:5173"] })) // Erlaubt Zugriff vom Frontend und File index.html
 app.use(cors({ origin: "*" })) // Erlaubt Zugriff uberall
 
+const apiUrl = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/"
+const apiUrlTopMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top"
+const apiUrlPremiumMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_1200"
+
 // Altersberechnung
 function berechneAlter(geburtsdatum, versicherungsbeginn) {
   const birthDate = new Date(geburtsdatum)
@@ -30,26 +34,11 @@ app.post("/api/dog/tarifierung", async (req, res) => {
   console.log("Neue Dog Anfrage eingetroffen!")
   console.log("Request-Body:", JSON.stringify(req.body, null, 2)) // Logge den gesamten Body
 
-  const apiUrl = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/"
-  const apiUrlTopMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top"
-  const apiUrlPremiumMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_1200"
-
-  let premiumMitZahnBeitrag = 0
-  let topMitZahnBeitrag = 0
-
   // Frontend-Daten extrahieren
-  const { hunderasse, geburtsdatum, versicherungsbeginn, zahlweise, hunderassenList, selbstbeteiligung } = req.body
+  const { hunderasse, geburtsdatum, versicherungsbeginn, zahlweise } = req.body
 
   // Überprüfe die Felder auf Validität
-  if (
-    !hunderasse ||
-    !geburtsdatum ||
-    !versicherungsbeginn ||
-    !zahlweise ||
-    !hunderassenList ||
-    !Array.isArray(hunderassenList) ||
-    hunderassenList.length === 0
-  ) {
+  if (!hunderasse || !geburtsdatum || !versicherungsbeginn || !zahlweise) {
     console.error("Fehlende oder ungültige Felder im Request!")
     return res.status(400).json({ error: "Fehlende oder ungültige Felder im Request" })
   }
@@ -58,6 +47,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
   const ageAtStart = berechneAlter(geburtsdatum, versicherungsbeginn)
   const isOlderDog = ageAtStart >= 4 // Setze älter als 4 Jahre als Grenzwert
   const isDogTooOldForKv = ageAtStart > 5 // Hunde älter als 5 Jahre erhalten keine KV-Versicherung
+  const isDogTooOldForAll = ageAtStart >= 9
 
   // Logge die Eingaben und Alter
   console.log(`Hunderasse: ${hunderasse}`)
@@ -90,7 +80,7 @@ app.post("/api/dog/tarifierung", async (req, res) => {
         versicherungsbeginn: formattedVersicherungsbeginn,
         gesundheitsdaten: { koerpergroesse: null, koerpergewicht: null },
         gesundheitsfragen: {},
-        tarife: isOlderDog ? [] : null,
+        tarife: null,
         rollen: ["VERSICHERUNGSNEHMER"],
         id: "vn",
         geburtsdatum: formattedGeburtsdatum
@@ -108,21 +98,20 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       tierart: "Hund",
       erstattungssatz: "PROZENT_100",
       geschlecht: "m",
-      zahlweise,
+      zahlweise: zahlweise,
       selbstbeteiligungBeitrag: 0,
-      spezialTarif: "", // Premium_Akut_1200 für mit Vorsorge & Zahn, leer für gar nichts
+      spezialTarif: "",
       tarif: "",
       isKV: false,
       showOP: true,
       pferd: true,
       vuz: true,
-      disableSbCheckboxKv: isOlderDog,
+      disableSbCheckboxKv: false,
       disableSbCheckboxOp: false,
       showAbschlussButton: true,
-      tierartParam: "Hund",
-      selbstbeteiligung: isOlderDog ? true : selbstbeteiligung,
-      hunderasse,
-      hunderassenList,
+      tierartParam: "Katze",
+      hunderasse: hunderasse,
+      hunderassenList: [hunderasse],
       geburtsdatum: formattedGeburtsdatum,
       operationskosten: false
     },
@@ -139,102 +128,144 @@ app.post("/api/dog/tarifierung", async (req, res) => {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.0.0 Safari/537.36"
   }
 
-  const kvPayload = {
+  const kvPayloadOhneSb = {
     ...basePayload,
     oaSpezifisch: {
       ...basePayload.oaSpezifisch,
-      versicherung: "kv"
+      versicherung: "kv",
+      selbstbeteiligung: false
     }
   }
 
-  const opPayload = {
+  const kvPayloadMitSb = {
     ...basePayload,
     oaSpezifisch: {
       ...basePayload.oaSpezifisch,
-      versicherung: "op"
+      versicherung: "kv",
+      selbstbeteiligung: true
     }
   }
 
-  console.log(kvPayload)
+  const opPayloadOhneSb = {
+    ...basePayload,
+    oaSpezifisch: {
+      ...basePayload.oaSpezifisch,
+      versicherung: "op",
+      selbstbeteiligung: false
+    }
+  }
 
-  //   INFO
+  const opPayloadMitSb = {
+    ...basePayload,
+    oaSpezifisch: {
+      ...basePayload.oaSpezifisch,
+      versicherung: "op",
+      selbstbeteiligung: true
+    }
+  }
 
-  //   Es werden mehrere fetches an die BarmeniaAPI gemacht.
-  //   Der erste ist mit der normalen Payload and die url /tarifierung
-  //   Die gibt dann alle base Preise etc aus.
-
-  //   Es wird dann eine zweite and /tarifierung/Top gemacht
-  //   Dort bekommt man dann den preis für die Top inkl Vorsorge und Zahn
-
-  //   Zuletzt eine dritte and /tarifierung/Premium_Akut_1200
-  //   für den Preis von Premium inkl Vorsorge und Zahn
+  const finalResponses = {
+    opSchutz: {
+      beitragOhneSb: 0,
+      beitragMitSb: 0
+    },
+    basis: {
+      beitragOhneSb: 0,
+      beitragMitSb: 0
+    },
+    top: {
+      beitragOhneSbOhneZahn: 0,
+      beitragMitSbOhneZahn: 0,
+      beitragOhneSbMitZahn: 0,
+      beitragMitSbMitZahn: 0
+    },
+    premium: {
+      beitragOhneSbOhneZahn: 0,
+      beitragMitSbOhneZahn: 0,
+      beitragOhneSbMitZahn: 0,
+      beitragMitSbMitZahn: 0
+    }
+  }
 
   try {
-    let gefilterteKvTarife = []
-
-    // KV fetch from Barmenia server
-    if (!isDogTooOldForKv) {
-      // Erstes senden von base payload für ersten fetch
-      console.log("Senden von KV-Payload an /tarifierung:")
-      const kvResponseMain = await axios.post(apiUrl, kvPayload, { headers })
-      console.log("KV Response für Basis Preise erfolgreich erhalten:", kvResponseMain.data)
-
-      // Zweite payload an /taifierung/Top
-      console.log("Senden von KV-Payload an /tarifierung/Top")
-      try {
-        const kvResponseTopMitZahn = await axios.post(apiUrlTopMitZahn, kvPayload, { headers })
-        console.log("KV Response für TOP mit Zahn erfolgreich erhalten:", kvResponseTopMitZahn.data)
-        topMitZahnBeitrag = kvResponseTopMitZahn.data.tarifBeitraege.Top[0].beitrag
-      } catch (error) {
-        console.log("Ein Fehler beim Abrufen von TopMitZahn ist aufgetreten:", error.message)
-      }
-
-      // dritte payload für Premium mit Zahn an tarifierung/Premium_1200
-      try {
-        console.log("Senden von KV-Payload an /tarifierung/Premium_1200")
-        const kvResponsePremiumMitZahn = await axios.post(apiUrlPremiumMitZahn, kvPayload, { headers })
-        console.log("KV Response für Premium mit Zahn erfolgreich erhalten:", kvResponsePremiumMitZahn.data)
-        premiumMitZahnBeitrag = kvResponsePremiumMitZahn.data.tarifBeitraege.Premium_1200[0].beitrag
-      } catch (error) {
-        console.log("Ein Fehler beim Abrufen von PremiumMitZahn ist aufgetreten:", error.message)
-      }
-
-      gefilterteKvTarife = kvResponseMain.data.tarifBeitraege?.["1"]
-        ? kvResponseMain.data.tarifBeitraege["1"].filter((tarif) => ["Basis", "Top", "Premium"].includes(tarif.tarifInfo?.name))
-        : []
-    } else {
-      console.log("Hund ist älter als 5 Jahre, KV-Abfrage übersprungen.")
+    if (isDogTooOldForKv) {
+      console.log("Hund ist zu alt für KV")
+      return "Hund ist zu alt für KV"
     }
+    if (isOlderDog) {
+      console.log("Hund ist zu alt für OP")
+      return "Hund ist zu alt für OP"
+    }
+    // alle tarife fetches, standard
+    if (!isDogTooOldForAll) {
+      // 1. und 2. fetch API KV ohne SB und mit sb
 
-    // OP fetch from Barmenia Server
-    console.log("Senden von OP-Payload:")
-    const opResponse = await axios.post(apiUrl, opPayload, { headers })
-    console.log("OP Response erfolgreich erhalten:", opResponse.data)
+      console.log("Fetching Data from Barmenia API...")
 
-    const gefilterteOpTarife = opResponse.data.tarifBeitraege?.["1"]
-      ? opResponse.data.tarifBeitraege["1"].filter((tarif) => tarif.tarifInfo?.name === "Premium")
-      : []
+      const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
+      const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
+      console.log("Fetch from ", apiUrl, " was successfull.")
+      const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
+      const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
 
-    const umbenannteOpTarife = gefilterteOpTarife.map((tarif) => ({
-      name: "OPSchutz",
-      beitrag: tarif.beitrag
-    }))
+      // fill into finalResponses
+      tarifBeitraegeKvOhneSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragOhneSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
+      tarifBeitraegeKvMitSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragMitSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
 
-    // Zusammenführen der Tarife
-    const tarife = [
-      ...(isDogTooOldForKv
-        ? []
-        : gefilterteKvTarife.map((tarif) => ({
-            name: tarif.tarifInfo.name,
-            beitrag: tarif.beitrag
-          }))),
-      ...umbenannteOpTarife
-    ]
-    topMitZahnBeitrag ? tarife.push({ name: "TopMitZahn", beitrag: topMitZahnBeitrag }) : null
-    premiumMitZahnBeitrag ? tarife.push({ name: "PremiumMitZahn", beitrag: premiumMitZahnBeitrag }) : null
+      // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
+      finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
+      finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
 
-    console.log("Finale Tarife:", tarife)
-    return res.json(tarife)
+      // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
+
+      finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
+      finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
+
+      // Zuletzt die fetches an op schutz
+
+      finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
+      finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+    }
+    // Final return after fetching all data
+
+    console.log("Successfully fetched all data from API. Final Response to client:")
+    console.log(JSON.stringify(finalResponses, null, 2))
+
+    return res.json(finalResponses)
   } catch (error) {
     console.error("Ein Fehler ist aufgetreten:", error.message)
     if (error.response) {
@@ -242,10 +273,72 @@ app.post("/api/dog/tarifierung", async (req, res) => {
     }
     return res.status(500).json({ error: "Interner Serverfehler bei der Tarifierung" })
   }
-})
+  async function fetchPremiumMitSbMitZahn(payload) {
+    try {
+      const premiumResponseMitSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
+      const tarifBeitragPremiumMitSbMitZahn = premiumResponseMitSbMitZahn.data.tarifBeitraege.Premium_1200
+      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitSbMitZahn was successfull.")
+      return tarifBeitragPremiumMitSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
 
-// Starte den Server
-app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`))
+  async function fetchPremiumOhneSbMitZahn(payload) {
+    try {
+      const premiumResponseOhneSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
+      const tarifBeitragPremiumOhneSbMitZahn = premiumResponseOhneSbMitZahn.data.tarifBeitraege.Premium_1200
+      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumOhneSbMitZahn was successfull.")
+      return tarifBeitragPremiumOhneSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchTopMitSbMitZahn(payload) {
+    try {
+      const topResponseMitSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
+      const tarifBeitragTopMitSbMitZahn = topResponseMitSbMitZahn.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitSbMitZahn was successfull.")
+      return tarifBeitragTopMitSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchTopOhneSbMitZahn(payload) {
+    try {
+      const topResponseOhneSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
+      const tarifBeitragTopOhneSbMitZahn = topResponseOhneSbMitZahn.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlTopMitZahn, " for TopOhneSbMitZahn was successfull.")
+      return tarifBeitragTopOhneSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchOpOhneSb(payload) {
+    try {
+      const opResponseOhneSB = await axios.post(apiUrl, payload, { headers })
+      const tarifBeitragOpOhneSb = opResponseOhneSB.data.tarifBeitraege[1][0].beitrag
+      console.log("Fetch from ", apiUrl, " for OpOhneSb was successfull.")
+      return tarifBeitragOpOhneSb
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchOpMitSb(payload) {
+    try {
+      const opResponseMitSB = await axios.post(apiUrl, payload, { headers })
+      const tarifBeitragOpMitSb = opResponseMitSB.data.tarifBeitraege[1][0].beitrag
+      console.log("Fetch from ", apiUrl, " for OpMitSb was successfull.")
+      return tarifBeitragOpMitSb
+    } catch (error) {
+      return error.message
+    }
+  }
+})
 
 //
 //
@@ -287,19 +380,13 @@ app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`)
 //
 //
 // CAT Tarifierung
+
 app.post("/api/cat/tarifierung", async (req, res) => {
   console.log("Neue Cat Anfrage eingetroffen!")
   console.log("Request-Body:", JSON.stringify(req.body, null, 2)) // Logge den gesamten Body
 
-  const apiUrl = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/"
-  const apiUrlTopMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top"
-  const apiUrlPremiumMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_1200"
-
-  let premiumMitZahnBeitrag = 0
-  let topMitZahnBeitrag = 0
-
   // Frontend-Daten extrahieren
-  const { geburtsdatum, versicherungsbeginn, zahlweise, selbstbeteiligung } = req.body
+  const { geburtsdatum, versicherungsbeginn, zahlweise } = req.body
 
   // Überprüfe die Felder auf Validität
 
@@ -315,10 +402,11 @@ app.post("/api/cat/tarifierung", async (req, res) => {
     return res.status(400).json({ error: "Fehlende oder ungültige Felder im Request" })
   }
 
-  // Alter des Hundes berechnen
+  // Alter der Katze berechnen
   const ageAtStart = berechneAlter(geburtsdatum, versicherungsbeginn)
-  const isOlderCat = ageAtStart >= 4 // Setze älter als 4 Jahre als Grenzwert
-  const isCatTooOldForKv = ageAtStart > 5 // Hunde älter als 5 Jahre erhalten keine KV-Versicherung
+  const isOlderCatOnlySB = ageAtStart >= 4 // Setze älter als 4 Jahre als Grenzwert
+  const isCatTooOldForKv = ageAtStart >= 5 // Hunde älter als 5 Jahre erhalten keine KV-Versicherung
+  const isCatTooOldForOp = ageAtStart >= 5 // Hunde älter als 5 Jahre erhalten keine KV-Versicherung
 
   // Logge die Eingaben und Alter
   console.log(`Geburtsdatum (Raw): ${geburtsdatum}`)
@@ -350,7 +438,7 @@ app.post("/api/cat/tarifierung", async (req, res) => {
         versicherungsbeginn: formattedVersicherungsbeginn,
         gesundheitsdaten: { koerpergroesse: null, koerpergewicht: null },
         gesundheitsfragen: {},
-        tarife: isOlderCat ? [] : null,
+        tarife: null,
         rollen: ["VERSICHERUNGSNEHMER"],
         id: "vn",
         geburtsdatum: formattedGeburtsdatum
@@ -376,11 +464,10 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       showOP: true,
       pferd: true,
       vuz: true,
-      disableSbCheckboxKv: isOlderCat,
+      disableSbCheckboxKv: false,
       disableSbCheckboxOp: false,
       showAbschlussButton: true,
       tierartParam: "Katze",
-      selbstbeteiligung: isOlderCat ? true : selbstbeteiligung,
       hunderasse: "",
       hunderassenList: "",
       geburtsdatum: formattedGeburtsdatum,
@@ -399,102 +486,144 @@ app.post("/api/cat/tarifierung", async (req, res) => {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.0.0 Safari/537.36"
   }
 
-  const kvPayload = {
+  const kvPayloadOhneSb = {
     ...basePayload,
     oaSpezifisch: {
       ...basePayload.oaSpezifisch,
-      versicherung: "kv"
+      versicherung: "kv",
+      selbstbeteiligung: false
     }
   }
 
-  const opPayload = {
+  const kvPayloadMitSb = {
     ...basePayload,
     oaSpezifisch: {
       ...basePayload.oaSpezifisch,
-      versicherung: "op"
+      versicherung: "kv",
+      selbstbeteiligung: true
     }
   }
 
-  console.log(kvPayload)
+  const opPayloadOhneSb = {
+    ...basePayload,
+    oaSpezifisch: {
+      ...basePayload.oaSpezifisch,
+      versicherung: "op",
+      selbstbeteiligung: false
+    }
+  }
 
-  //   INFO
+  const opPayloadMitSb = {
+    ...basePayload,
+    oaSpezifisch: {
+      ...basePayload.oaSpezifisch,
+      versicherung: "op",
+      selbstbeteiligung: true
+    }
+  }
 
-  //   Es werden mehrere fetches an die BarmeniaAPI gemacht.
-  //   Der erste ist mit der normalen Payload and die url /tarifierung
-  //   Die gibt dann alle base Preise etc aus.
-
-  //   Es wird dann eine zweite and /tarifierung/Top gemacht
-  //   Dort bekommt man dann den preis für die Top inkl Vorsorge und Zahn
-
-  //   Zuletzt eine dritte and /tarifierung/Premium_Akut_1200
-  //   für den Preis von Premium inkl Vorsorge und Zahn
+  const finalResponses = {
+    opSchutz: {
+      beitragOhneSb: 0,
+      beitragMitSb: 0
+    },
+    basis: {
+      beitragOhneSb: 0,
+      beitragMitSb: 0
+    },
+    top: {
+      beitragOhneSbOhneZahn: 0,
+      beitragMitSbOhneZahn: 0,
+      beitragOhneSbMitZahn: 0,
+      beitragMitSbMitZahn: 0
+    },
+    premium: {
+      beitragOhneSbOhneZahn: 0,
+      beitragMitSbOhneZahn: 0,
+      beitragOhneSbMitZahn: 0,
+      beitragMitSbMitZahn: 0
+    }
+  }
 
   try {
-    let gefilterteKvTarife = []
-
-    // KV fetch from Barmenia server
-    if (!isCatTooOldForKv) {
-      // Erstes senden von base payload für ersten fetch
-      console.log("Senden von KV-Payload an /tarifierung:")
-      const kvResponseMain = await axios.post(apiUrl, kvPayload, { headers })
-      console.log("KV Response für Basis Preise erfolgreich erhalten:", kvResponseMain.data)
-
-      // Zweite payload an /taifierung/Top
-      console.log("Senden von KV-Payload an /tarifierung/Top")
-      try {
-        const kvResponseTopMitZahn = await axios.post(apiUrlTopMitZahn, kvPayload, { headers })
-        console.log("KV Response für TOP mit Zahn erfolgreich erhalten:", kvResponseTopMitZahn.data)
-        topMitZahnBeitrag = kvResponseTopMitZahn.data.tarifBeitraege.Top[0].beitrag
-      } catch (error) {
-        console.log("Ein Fehler beim Abrufen von TopMitZahn ist aufgetreten:", error.message)
-      }
-
-      // dritte payload für Premium mit Zahn an tarifierung/Premium_1200
-      try {
-        console.log("Senden von KV-Payload an /tarifierung/Premium_1200")
-        const kvResponsePremiumMitZahn = await axios.post(apiUrlPremiumMitZahn, kvPayload, { headers })
-        console.log("KV Response für Premium mit Zahn erfolgreich erhalten:", kvResponsePremiumMitZahn.data)
-        premiumMitZahnBeitrag = kvResponsePremiumMitZahn.data.tarifBeitraege.Premium_1200[0].beitrag
-      } catch (error) {
-        console.log("Ein Fehler beim Abrufen von PremiumMitZahn ist aufgetreten:", error.message)
-      }
-
-      gefilterteKvTarife = kvResponseMain.data.tarifBeitraege?.["1"]
-        ? kvResponseMain.data.tarifBeitraege["1"].filter((tarif) => ["Basis", "Top", "Premium"].includes(tarif.tarifInfo?.name))
-        : []
-    } else {
-      console.log("Hund ist älter als 5 Jahre, KV-Abfrage übersprungen.")
+    if (isCatTooOldForKv) {
+      console.log("Katze ist zu alt für KV")
+      return "Katze ist zu alt für KV"
     }
+    if (isCatTooOldForOp) {
+      console.log("Katze ist zu alt für OP")
+      return "Katze ist zu alt für OP"
+    }
+    // alle tarife fetches, standard
+    if (!isOlderCatOnlySB && !isCatTooOldForKv) {
+      // 1. und 2. fetch API KV ohne SB und mit sb
 
-    // OP fetch from Barmenia Server
-    console.log("Senden von OP-Payload:")
-    const opResponse = await axios.post(apiUrl, opPayload, { headers })
-    console.log("OP Response erfolgreich erhalten:", opResponse.data)
+      console.log("Fetching Data from Barmenia API...")
 
-    const gefilterteOpTarife = opResponse.data.tarifBeitraege?.["1"]
-      ? opResponse.data.tarifBeitraege["1"].filter((tarif) => tarif.tarifInfo?.name === "Premium")
-      : []
+      const kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
+      const kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
+      console.log("Fetch from ", apiUrl, " was successfull.")
+      const tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
+      const tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
 
-    const umbenannteOpTarife = gefilterteOpTarife.map((tarif) => ({
-      name: "OPSchutz",
-      beitrag: tarif.beitrag
-    }))
+      // fill into finalResponses
+      tarifBeitraegeKvOhneSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragOhneSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
+      tarifBeitraegeKvMitSb.forEach((element) => {
+        switch (element.tarifInfo.name) {
+          case "Basis":
+            finalResponses.basis.beitragMitSb = element.beitrag
+            break
+          case "Top":
+            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium":
+            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
+            break
+          case "Premium Plus":
+            break
+          default:
+            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
+            break
+        }
+      })
 
-    // Zusammenführen der Tarife
-    const tarife = [
-      ...(isCatTooOldForKv
-        ? []
-        : gefilterteKvTarife.map((tarif) => ({
-            name: tarif.tarifInfo.name,
-            beitrag: tarif.beitrag
-          }))),
-      ...umbenannteOpTarife
-    ]
-    topMitZahnBeitrag ? tarife.push({ name: "TopMitZahn", beitrag: topMitZahnBeitrag }) : null
-    premiumMitZahnBeitrag ? tarife.push({ name: "PremiumMitZahn", beitrag: premiumMitZahnBeitrag }) : null
+      // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
+      finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
+      finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
 
-    console.log("Finale Tarife:", tarife)
-    return res.json(tarife)
+      // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
+
+      finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
+      finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
+
+      // Zuletzt die fetches an op schutz
+
+      finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
+      finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+    }
+    // Final return after fetching all data
+
+    console.log("Successfully fetched all data from API. Final Response to client:")
+    console.log(JSON.stringify(finalResponses, null, 2))
+
+    return res.json(finalResponses)
   } catch (error) {
     console.error("Ein Fehler ist aufgetreten:", error.message)
     if (error.response) {
@@ -502,4 +631,83 @@ app.post("/api/cat/tarifierung", async (req, res) => {
     }
     return res.status(500).json({ error: "Interner Serverfehler bei der Tarifierung" })
   }
+  async function fetchPremiumMitSbMitZahn(payload) {
+    try {
+      const premiumResponseMitSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
+      const tarifBeitragPremiumMitSbMitZahn = premiumResponseMitSbMitZahn.data.tarifBeitraege.Premium_1200
+      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitSbMitZahn was successfull.")
+      return tarifBeitragPremiumMitSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchPremiumOhneSbMitZahn(payload) {
+    try {
+      const premiumResponseOhneSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
+      const tarifBeitragPremiumOhneSbMitZahn = premiumResponseOhneSbMitZahn.data.tarifBeitraege.Premium_1200
+      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumOhneSbMitZahn was successfull.")
+      return tarifBeitragPremiumOhneSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchTopMitSbMitZahn(payload) {
+    try {
+      const topResponseMitSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
+      const tarifBeitragTopMitSbMitZahn = topResponseMitSbMitZahn.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitSbMitZahn was successfull.")
+      return tarifBeitragTopMitSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchTopOhneSbMitZahn(payload) {
+    try {
+      const topResponseOhneSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
+      const tarifBeitragTopOhneSbMitZahn = topResponseOhneSbMitZahn.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlTopMitZahn, " for TopOhneSbMitZahn was successfull.")
+      return tarifBeitragTopOhneSbMitZahn[0].beitrag
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchOpOhneSb(payload) {
+    try {
+      const opResponseOhneSB = await axios.post(apiUrl, payload, { headers })
+      const tarifBeitragOpOhneSb = opResponseOhneSB.data.tarifBeitraege[1][0].beitrag
+      console.log("Fetch from ", apiUrl, " for OpOhneSb was successfull.")
+      return tarifBeitragOpOhneSb
+    } catch (error) {
+      return error.message
+    }
+  }
+
+  async function fetchOpMitSb(payload) {
+    try {
+      const opResponseMitSB = await axios.post(apiUrl, payload, { headers })
+      const tarifBeitragOpMitSb = opResponseMitSB.data.tarifBeitraege[1][0].beitrag
+      console.log("Fetch from ", apiUrl, " for OpMitSb was successfull.")
+      return tarifBeitragOpMitSb
+    } catch (error) {
+      return error.message
+    }
+  }
 })
+
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+// Server listening
+app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`))

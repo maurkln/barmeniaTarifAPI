@@ -47,16 +47,16 @@
       responseDiv.textContent = "Sende Anfrage...";
 
       try {
-        const response = await fetch('http://localhost:5000/api/tarifierung', {  // Verwende hier deinen Node API URL
+        const response = await fetch('http://localhost:5000/api/dog/tarifierung', {  // Verwende hier deinen Node API URL
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
             hunderasse: "Labrador",
-            geburtsdatum: "2020-01-01",
+            geburtsdatum: "2022-01-01",
             versicherungsbeginn: "2025-04-01",
-            zahlweise: "JAEHRLICH",
+            zahlweise: "MONATLICH",
             hunderassenList: ["Labrador"],
             selbstbeteiligung: false
           })
