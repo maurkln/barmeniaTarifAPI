@@ -5,7 +5,6 @@ const cors = require("cors")
 const dayjs = require("dayjs")
 
 const app = express()
-const PORT = 5000
 
 // Middleware
 app.use(bodyParser.json())
@@ -13,8 +12,15 @@ app.use(bodyParser.json())
 app.use(cors({ origin: "*" })) // Erlaubt Zugriff uberall
 
 const apiUrl = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/"
+const apiUrlBasis = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Basis"
 const apiUrlTopMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top"
+const apiUrlTopOhneZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top_Akut"
 const apiUrlPremiumMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_1200"
+const apiUrlPremiumOhneZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Akut_1200"
+const apiUrlPremiumPlusOhneZahnOhneKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus_Akut_1200"
+const apiUrlPremiumPlusOhneZahnMitKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus_Akut"
+const apiUrlPremiumPlusMitZahnMitKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus"
+const apiUrlPremiumPlusMitZahnOhneKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus_1200"
 
 // Altersberechnung
 function berechneAlter(geburtsdatum, versicherungsbeginn) {
@@ -184,99 +190,48 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       beitragMitSbOhneZahn: 0,
       beitragOhneSbMitZahn: 0,
       beitragMitSbMitZahn: 0
+    },
+    premiumPlus: {
+      beitragOhneSbOhneZahnMitKons: 0,
+      beitragMitSbOhneZahnMitKons: 0,
+      beitragOhneSbMitZahnMitKons: 0,
+      beitragMitSbMitZahnMitKons: 0
     }
   }
 
   try {
-    // alle tarife fetches, standard
-
     // 1. und 2. fetch API KV ohne SB und mit sb
 
     console.log("Fetching Data from Barmenia API...")
 
-    let kvResponseOhneSb
-    let kvResponseMitSb
-    let tarifBeitraegeKvOhneSb
-    let tarifBeitraegeKvMitSb
+    // Zuletzt die fetches an op schutz
+    finalResponses.opSchutz.beitragOhneSb = await fetchOp(opPayloadOhneSb)
+    finalResponses.opSchutz.beitragMitSb = await fetchOp(opPayloadMitSb)
 
-    try {
-      kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
-      console.log("Fetch from ", apiUrl, " for kvResponseOhneSb was successfull.")
-    } catch (error) {
-      console.log(error.message)
-    }
-
-    try {
-      kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
-      console.log("Fetch from ", apiUrl, " for kvResponseMitSb was successfull.")
-    } catch (error) {
-      console.log(error.message)
-    }
+    finalResponses.basis.beitragOhneSb = await fetchBasis(kvPayloadOhneSb)
+    finalResponses.basis.beitragMitSb = await fetchBasis(kvPayloadMitSb)
 
     // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
-    finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
-    finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
+    finalResponses.top.beitragOhneSbOhneZahn = await fetchTopOhneZahn(kvPayloadOhneSb)
+    finalResponses.top.beitragMitSbOhneZahn = await fetchTopOhneZahn(kvPayloadMitSb)
+    finalResponses.top.beitragOhneSbMitZahn = await fetchTopMitZahn(kvPayloadOhneSb)
+    finalResponses.top.beitragMitSbMitZahn = await fetchTopMitZahn(kvPayloadMitSb)
 
     // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
 
-    finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
-    finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
+    finalResponses.premium.beitragOhneSbOhneZahn = await fetchPremiumOhneZahn(kvPayloadOhneSb)
+    finalResponses.premium.beitragMitSbOhneZahn = await fetchPremiumOhneZahn(kvPayloadMitSb)
+    finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumMitZahn(kvPayloadOhneSb)
+    finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitZahn(kvPayloadMitSb)
 
-    // Zuletzt die fetches an op schutz
+    // Danach alle neuen Premium_Plus fetches
 
-    finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
-    finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadMitSb)
 
     // fill into finalResponses
-    try {
-      tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
-
-      tarifBeitraegeKvOhneSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragOhneSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
-    } catch (error) {
-      console.log(error.message)
-    }
-
-    try {
-      tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
-
-      tarifBeitraegeKvMitSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragMitSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
-    } catch (error) {
-      console.log(error)
-    }
 
     // Final return after fetching all data
 
@@ -291,67 +246,235 @@ app.post("/api/dog/tarifierung", async (req, res) => {
     }
     return res.status(500).json({ error: "Interner Serverfehler bei der Tarifierung" })
   }
-  async function fetchPremiumMitSbMitZahn(payload) {
+
+  async function fetchBasis(payload) {
     try {
-      const premiumResponseMitSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
-      const tarifBeitragPremiumMitSbMitZahn = premiumResponseMitSbMitZahn.data.tarifBeitraege.Premium_1200
-      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitSbMitZahn was successfull.")
-      return tarifBeitragPremiumMitSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "",
+          tarif: "Basis",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlBasis, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Basis
+      console.log("Fetch from ", apiUrlBasis, " for Basis was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchPremiumOhneSbMitZahn(payload) {
+  async function fetchTopOhneZahn(payload) {
     try {
-      const premiumResponseOhneSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
-      const tarifBeitragPremiumOhneSbMitZahn = premiumResponseOhneSbMitZahn.data.tarifBeitraege.Premium_1200
-      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumOhneSbMitZahn was successfull.")
-      return tarifBeitragPremiumOhneSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "Top_Akut",
+          tarif: "Top_Akut",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlTopOhneZahn, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Top_Akut
+      console.log("Fetch from ", apiUrlTopOhneZahn, " for TopOhneZahn was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchTopMitSbMitZahn(payload) {
+  async function fetchTopMitZahn(payload) {
     try {
-      const topResponseMitSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
-      const tarifBeitragTopMitSbMitZahn = topResponseMitSbMitZahn.data.tarifBeitraege.Top
-      console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitSbMitZahn was successfull.")
-      return tarifBeitragTopMitSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "",
+          tarif: "Top",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const topResponseOhneSbMitZahn = await axios.post(apiUrlTopMitZahn, newPayload, { headers })
+      const tarif = topResponseOhneSbMitZahn.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitZahn was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchTopOhneSbMitZahn(payload) {
+  async function fetchPremiumOhneZahn(payload) {
     try {
-      const topResponseOhneSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
-      const tarifBeitragTopOhneSbMitZahn = topResponseOhneSbMitZahn.data.tarifBeitraege.Top
-      console.log("Fetch from ", apiUrlTopMitZahn, " for TopOhneSbMitZahn was successfull.")
-      return tarifBeitragTopOhneSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "Premium_Akut_1200",
+          tarif: "Premium_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const premiumResponseOhneSbMitZahn = await axios.post(apiUrlPremiumOhneZahn, newPayload, { headers })
+      const tarif = premiumResponseOhneSbMitZahn.data.tarifBeitraege.Premium_Akut_1200
+      console.log("Fetch from ", apiUrlPremiumOhneZahn, " for PremiumOhneZahn was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchOpOhneSb(payload) {
+  async function fetchPremiumMitZahn(payload) {
     try {
-      const opResponseOhneSB = await axios.post(apiUrl, payload, { headers })
-      const tarifBeitragOpOhneSb = opResponseOhneSB.data.tarifBeitraege[1][0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "",
+          tarif: "Premium_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumMitZahn, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_1200
+      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitZahn was successfull.")
+      return tarif[0].beitrag
+    } catch (error) {
+      return "ERROR"
+    }
+  }
+
+  async function fetchOp(payload) {
+    try {
+      const response = await axios.post(apiUrl, payload, { headers })
+      const tarif = response.data.tarifBeitraege[1][0].beitrag
       console.log("Fetch from ", apiUrl, " for OpOhneSb was successfull.")
-      return tarifBeitragOpOhneSb
+      return tarif
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchOpMitSb(payload) {
+  async function fetchPremiumPlusOhneZahnMitKons(payload) {
     try {
-      const opResponseMitSB = await axios.post(apiUrl, payload, { headers })
-      const tarifBeitragOpMitSb = opResponseMitSB.data.tarifBeitraege[1][0].beitrag
-      console.log("Fetch from ", apiUrl, " for OpMitSb was successfull.")
-      return tarifBeitragOpMitSb
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          spezialTarif: "Premium_Plus_Akut",
+          tarif: "Premium_Plus_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumPlusOhneZahnMitKons, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_Plus_Akut
+      console.log("Fetch from ", apiUrlPremiumPlusOhneZahnMitKons, " for PremiumPlusOhneZahnMitKons was successfull.")
+      return tarif[0].beitrag
+    } catch (error) {
+      return "ERROR"
+    }
+  }
+
+  async function fetchPremiumPlusMitZahnMitKons(payload) {
+    try {
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          tierart: "Hund",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          spezialTarif: "Premium_Plus_Akut_1200",
+          tarif: "Premium_Plus_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumPlusMitZahnMitKons, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_Plus[0].beitrag
+      console.log("Fetch from ", apiUrlPremiumPlusMitZahnMitKons, " for PremiumPlusMitZahnMitKons was successfull.")
+      return tarif
     } catch (error) {
       return "ERROR"
     }
@@ -560,6 +683,12 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       beitragMitSbOhneZahn: 0,
       beitragOhneSbMitZahn: 0,
       beitragMitSbMitZahn: 0
+    },
+    premiumPlus: {
+      beitragOhneSbOhneZahnMitKons: 0,
+      beitragMitSbOhneZahnMitKons: 0,
+      beitragOhneSbMitZahnMitKons: 0,
+      beitragMitSbMitZahnMitKons: 0
     }
   }
 
@@ -570,89 +699,32 @@ app.post("/api/cat/tarifierung", async (req, res) => {
 
     console.log("Fetching Data from Barmenia API...")
 
-    let kvResponseOhneSb
-    let kvResponseMitSb
-    let tarifBeitraegeKvOhneSb
-    let tarifBeitraegeKvMitSb
+    // Zuletzt die fetches an op schutz
+    finalResponses.opSchutz.beitragOhneSb = await fetchOp(opPayloadOhneSb)
+    finalResponses.opSchutz.beitragMitSb = await fetchOp(opPayloadMitSb)
 
-    try {
-      kvResponseOhneSb = await axios.post(apiUrl, kvPayloadOhneSb, { headers })
-      console.log("Fetch from ", apiUrl, " for kvResponseOhneSb was successfull.")
-    } catch (error) {
-      console.log(error.message)
-    }
-
-    try {
-      kvResponseMitSb = await axios.post(apiUrl, kvPayloadMitSb, { headers })
-      console.log("Fetch from ", apiUrl, " for kvResponseMitSb was successfull.")
-    } catch (error) {
-      console.log(error.message)
-    }
+    finalResponses.basis.beitragOhneSb = await fetchBasis(kvPayloadOhneSb)
+    finalResponses.basis.beitragMitSb = await fetchBasis(kvPayloadMitSb)
 
     // 3. und 4. fetch an /Top für Zahn mit sb ohne sb
-    finalResponses.top.beitragOhneSbMitZahn = await fetchTopOhneSbMitZahn(kvPayloadOhneSb)
-    finalResponses.top.beitragMitSbMitZahn = await fetchTopMitSbMitZahn(kvPayloadMitSb)
+    finalResponses.top.beitragOhneSbOhneZahn = await fetchTopOhneZahn(kvPayloadOhneSb)
+    finalResponses.top.beitragMitSbOhneZahn = await fetchTopOhneZahn(kvPayloadMitSb)
+    finalResponses.top.beitragOhneSbMitZahn = await fetchTopMitZahn(kvPayloadOhneSb)
+    finalResponses.top.beitragMitSbMitZahn = await fetchTopMitZahn(kvPayloadMitSb)
 
     // 5. und 6. fetch an /Premium für Zahn mit sb ohne sb
 
-    finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumOhneSbMitZahn(kvPayloadOhneSb)
-    finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitSbMitZahn(kvPayloadMitSb)
+    finalResponses.premium.beitragOhneSbOhneZahn = await fetchPremiumOhneZahn(kvPayloadOhneSb)
+    finalResponses.premium.beitragMitSbOhneZahn = await fetchPremiumOhneZahn(kvPayloadMitSb)
+    finalResponses.premium.beitragOhneSbMitZahn = await fetchPremiumMitZahn(kvPayloadOhneSb)
+    finalResponses.premium.beitragMitSbMitZahn = await fetchPremiumMitZahn(kvPayloadMitSb)
 
-    // Zuletzt die fetches an op schutz
+    // Danach alle neuen Premium_Plus fetches
 
-    finalResponses.opSchutz.beitragOhneSb = await fetchOpOhneSb(opPayloadOhneSb)
-    finalResponses.opSchutz.beitragMitSb = await fetchOpMitSb(opPayloadMitSb)
-
-    // fill into finalResponses
-    try {
-      tarifBeitraegeKvOhneSb = kvResponseOhneSb.data.tarifBeitraege[1]
-
-      tarifBeitraegeKvOhneSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragOhneSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragOhneSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
-    } catch (error) {
-      console.log(error.message)
-    }
-
-    try {
-      tarifBeitraegeKvMitSb = kvResponseMitSb.data.tarifBeitraege[1]
-
-      tarifBeitraegeKvMitSb.forEach((element) => {
-        switch (element.tarifInfo.name) {
-          case "Basis":
-            finalResponses.basis.beitragMitSb = element.beitrag
-            break
-          case "Top":
-            finalResponses.top.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium":
-            finalResponses.premium.beitragMitSbOhneZahn = element.beitrag
-            break
-          case "Premium Plus":
-            break
-          default:
-            console.log("Konnte Tarif", element.tarifInfo.name, "nicht zuordnen.")
-            break
-        }
-      })
-    } catch (error) {
-      console.log(error)
-    }
+    finalResponses.premiumPlus.beitragOhneSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadMitSb)
 
     // Final return after fetching all data
 
@@ -667,67 +739,227 @@ app.post("/api/cat/tarifierung", async (req, res) => {
     }
     return res.status(500).json({ error: "Interner Serverfehler bei der Tarifierung" })
   }
-  async function fetchPremiumMitSbMitZahn(payload) {
+  async function fetchBasis(payload) {
     try {
-      const premiumResponseMitSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
-      const tarifBeitragPremiumMitSbMitZahn = premiumResponseMitSbMitZahn.data.tarifBeitraege.Premium_1200
-      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitSbMitZahn was successfull.")
-      return tarifBeitragPremiumMitSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "",
+          tarif: "Basis",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlBasis, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Basis
+      console.log("Fetch from ", apiUrlBasis, " for Basis was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchPremiumOhneSbMitZahn(payload) {
+  async function fetchTopOhneZahn(payload) {
     try {
-      const premiumResponseOhneSbMitZahn = await axios.post(apiUrlPremiumMitZahn, payload, { headers })
-      const tarifBeitragPremiumOhneSbMitZahn = premiumResponseOhneSbMitZahn.data.tarifBeitraege.Premium_1200
-      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumOhneSbMitZahn was successfull.")
-      return tarifBeitragPremiumOhneSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "Top_Akut",
+          tarif: "Top_Akut",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlTopOhneZahn, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Top_Akut
+      console.log("Fetch from ", apiUrlTopOhneZahn, " for TopOhneZahn was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchTopMitSbMitZahn(payload) {
+  async function fetchTopMitZahn(payload) {
     try {
-      const topResponseMitSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
-      const tarifBeitragTopMitSbMitZahn = topResponseMitSbMitZahn.data.tarifBeitraege.Top
-      console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitSbMitZahn was successfull.")
-      return tarifBeitragTopMitSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "",
+          tarif: "Top",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlTopMitZahn, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlTopMitZahn, " for TopMitZahn was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchTopOhneSbMitZahn(payload) {
+  async function fetchPremiumOhneZahn(payload) {
     try {
-      const topResponseOhneSbMitZahn = await axios.post(apiUrlTopMitZahn, payload, { headers })
-      const tarifBeitragTopOhneSbMitZahn = topResponseOhneSbMitZahn.data.tarifBeitraege.Top
-      console.log("Fetch from ", apiUrlTopMitZahn, " for TopOhneSbMitZahn was successfull.")
-      return tarifBeitragTopOhneSbMitZahn[0].beitrag
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "Premium_Akut_1200",
+          tarif: "Premium_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumOhneZahn, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_Akut_1200
+      console.log("Fetch from ", apiUrlPremiumOhneZahn, " for PremiumOhneZahn was successfull.")
+      return tarif[0].beitrag
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchOpOhneSb(payload) {
+  async function fetchPremiumMitZahn(payload) {
+    try {
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          selbstbeteiligungBeitrag: 0,
+          spezialTarif: "",
+          tarif: "Premium_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumMitZahn, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_1200
+      console.log("Fetch from ", apiUrlPremiumMitZahn, " for PremiumMitZahn was successfull.")
+      return tarif[0].beitrag
+    } catch (error) {
+      return "ERROR"
+    }
+  }
+
+  async function fetchOp(payload) {
     try {
       const opResponseOhneSB = await axios.post(apiUrl, payload, { headers })
-      const tarifBeitragOpOhneSb = opResponseOhneSB.data.tarifBeitraege[1][0].beitrag
+      const tarif = opResponseOhneSB.data.tarifBeitraege[1][0].beitrag
       console.log("Fetch from ", apiUrl, " for OpOhneSb was successfull.")
-      return tarifBeitragOpOhneSb
+      return tarif
     } catch (error) {
       return "ERROR"
     }
   }
 
-  async function fetchOpMitSb(payload) {
+  async function fetchPremiumPlusOhneZahnMitKons(payload) {
     try {
-      const opResponseMitSB = await axios.post(apiUrl, payload, { headers })
-      const tarifBeitragOpMitSb = opResponseMitSB.data.tarifBeitraege[1][0].beitrag
-      console.log("Fetch from ", apiUrl, " for OpMitSb was successfull.")
-      return tarifBeitragOpMitSb
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          spezialTarif: "Premium_Plus_Akut",
+          tarif: "Premium_Plus_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumPlusOhneZahnMitKons, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_Plus_Akut[0].beitrag
+      console.log("Fetch from ", apiUrlPremiumPlusOhneZahnMitKons, " for PremiumPlusOhneZahnMitKons was successfull.")
+      return tarif
+    } catch (error) {
+      return "ERROR"
+    }
+  }
+
+  async function fetchPremiumPlusMitZahnMitKons(payload) {
+    try {
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+
+          versicherung: "kv",
+          erstattungssatz: "PROZENT_100",
+          geschlecht: "m",
+          spezialTarif: "Premium_Plus_Akut_1200",
+          tarif: "Premium_Plus_Akut_1200",
+          isKV: false,
+          showOP: false,
+          pferd: true,
+          vuz: true,
+          disableSbCheckboxKv: false,
+          disableSbCheckboxOp: false,
+          showAbschlussButton: true
+        }
+      }
+      const response = await axios.post(apiUrlPremiumPlusMitZahnMitKons, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium_Plus[0].beitrag
+      console.log("Fetch from ", apiUrlPremiumPlusMitZahnMitKons, " for PremiumPlusMitZahnMitKons was successfull.")
+      return tarif
     } catch (error) {
       return "ERROR"
     }
@@ -746,4 +978,31 @@ app.post("/api/cat/tarifierung", async (req, res) => {
 //
 //
 // Server listening
-app.listen(PORT, () => console.log(`Server läuft auf http://localhost:${PORT}`))
+const fs = require("fs")
+const https = require("https")
+const http = require("http")
+
+const HTTPS_PORT = 443
+const HTTP_PORT = 80
+
+const httpsOptions = {
+  key: fs.readFileSync("cert/key.pem"),
+  cert: fs.readFileSync("cert/cert.pem"),
+  ca: fs.readFileSync("cert/ca.pem") // optional, aber empfohlen
+}
+
+// HTTPS-Server starten
+https.createServer(httpsOptions, app).listen(HTTPS_PORT, () => {
+  console.log(`HTTPS läuft auf https://api.pfoteplus.de`)
+})
+
+// HTTP → HTTPS Weiterleitung
+http
+  .createServer((req, res) => {
+    const host = req.headers.host.replace(/:\d+$/, "")
+    res.writeHead(301, { Location: `https://${host}${req.url}` })
+    res.end()
+  })
+  .listen(HTTP_PORT, () => {
+    console.log(`HTTP-Umleitung auf HTTPS aktiv`)
+  })
