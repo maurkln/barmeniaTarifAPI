@@ -192,10 +192,10 @@ app.post("/api/dog/tarifierung", async (req, res) => {
       beitragMitSbMitZahn: 0
     },
     premiumPlus: {
-      beitragOhneSbOhneZahnMitKons: 0,
-      beitragMitSbOhneZahnMitKons: 0,
-      beitragOhneSbMitZahnMitKons: 0,
-      beitragMitSbMitZahnMitKons: 0
+      beitragOhneSbOhneZahn: 0,
+      beitragMitSbOhneZahn: 0,
+      beitragOhneSbMitZahn: 0,
+      beitragMitSbMitZahn: 0
     }
   }
 
@@ -226,10 +226,10 @@ app.post("/api/dog/tarifierung", async (req, res) => {
 
     // Danach alle neuen Premium_Plus fetches
 
-    finalResponses.premiumPlus.beitragOhneSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadOhneSb)
-    finalResponses.premiumPlus.beitragMitSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadMitSb)
-    finalResponses.premiumPlus.beitragOhneSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadOhneSb)
-    finalResponses.premiumPlus.beitragMitSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbOhneZahn = await fetchPremiumPlusOhneZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbOhneZahn = await fetchPremiumPlusOhneZahnMitKons(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbMitZahn = await fetchPremiumPlusMitZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbMitZahn = await fetchPremiumPlusMitZahnMitKons(opPayloadMitSb)
 
     // fill into finalResponses
 
@@ -685,10 +685,10 @@ app.post("/api/cat/tarifierung", async (req, res) => {
       beitragMitSbMitZahn: 0
     },
     premiumPlus: {
-      beitragOhneSbOhneZahnMitKons: 0,
-      beitragMitSbOhneZahnMitKons: 0,
-      beitragOhneSbMitZahnMitKons: 0,
-      beitragMitSbMitZahnMitKons: 0
+      beitragOhneSbOhneZahn: 0,
+      beitragMitSbOhneZahn: 0,
+      beitragOhneSbMitZahn: 0,
+      beitragMitSbMitZahn: 0
     }
   }
 
@@ -721,10 +721,10 @@ app.post("/api/cat/tarifierung", async (req, res) => {
 
     // Danach alle neuen Premium_Plus fetches
 
-    finalResponses.premiumPlus.beitragOhneSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadOhneSb)
-    finalResponses.premiumPlus.beitragMitSbOhneZahnMitKons = await fetchPremiumPlusOhneZahnMitKons(opPayloadMitSb)
-    finalResponses.premiumPlus.beitragOhneSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadOhneSb)
-    finalResponses.premiumPlus.beitragMitSbMitZahnMitKons = await fetchPremiumPlusMitZahnMitKons(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbOhneZahn = await fetchPremiumPlusOhneZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbOhneZahn = await fetchPremiumPlusOhneZahnMitKons(opPayloadMitSb)
+    finalResponses.premiumPlus.beitragOhneSbMitZahn = await fetchPremiumPlusMitZahnMitKons(opPayloadOhneSb)
+    finalResponses.premiumPlus.beitragMitSbMitZahn = await fetchPremiumPlusMitZahnMitKons(opPayloadMitSb)
 
     // Final return after fetching all data
 
