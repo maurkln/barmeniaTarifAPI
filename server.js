@@ -11,6 +11,7 @@ app.use(bodyParser.json())
 // app.use(cors({ origin: ["http://localhost:5173", "null", "https://pfoteplus.de", "http://31.17.172.189:5173"] })) // Erlaubt Zugriff vom Frontend und File index.html
 app.use(cors({ origin: "*" })) // Erlaubt Zugriff uberall
 
+// Dog und Cat api urls
 const apiUrl = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/"
 const apiUrlBasis = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Basis"
 const apiUrlTopMitZahn = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top"
@@ -21,6 +22,11 @@ const apiUrlPremiumPlusOhneZahnOhneKons = "https://ssl.barmenia.de/api/oa-bff-ti
 const apiUrlPremiumPlusOhneZahnMitKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus_Akut"
 const apiUrlPremiumPlusMitZahnMitKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus"
 const apiUrlPremiumPlusMitZahnOhneKons = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium_Plus_1200"
+
+// horse api urls
+const apiUrlOpSchutzBasis = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Basis"
+const apiUrlOpSchutzTop = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Top"
+const apiUrlOpSchutzPremium = "https://ssl.barmenia.de/api/oa-bff-tier/tarifierung/Premium"
 
 // Altersberechnung
 function berechneAlter(geburtsdatum, versicherungsbeginn) {
@@ -966,6 +972,323 @@ app.post("/api/cat/tarifierung", async (req, res) => {
   }
 })
 
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+// HOSRE Tarifierung
+app.post("/api/horse/tarifierung", async (req, res) => {
+  console.log("Neue Pferd Anfrage eingetroffen!")
+  console.log("Request-Body:", JSON.stringify(req.body, null, 2)) // Logge den gesamten Body
+
+  // Frontend-Daten extrahieren
+  const { geburtsdatum, versicherungsbeginn, zahlweise } = req.body
+
+  // Überprüfe die Felder auf Validität
+
+  if (!geburtsdatum || !versicherungsbeginn || !zahlweise) {
+    console.error("Fehlende oder ungültige Felder im Request!")
+    return res.status(400).json({ error: "Fehlende oder ungültige Felder im Request" })
+  }
+
+  // Alter des Pferdes berechnen
+  const ageAtStart = berechneAlter(geburtsdatum, versicherungsbeginn)
+
+  // Logge die Eingaben und Alter
+  console.log(`Geburtsdatum (Raw): ${geburtsdatum}`)
+  console.log(`Versicherungsbeginn (Raw): ${versicherungsbeginn}`)
+  console.log(`Alter des Pferdes bei Versicherungsbeginn: ${ageAtStart} Jahre`)
+
+  // Datumswerte ins ursprüngliche ISO-Format bringen
+  const formattedGeburtsdatum = dayjs(geburtsdatum).format("YYYY-MM-DDTHH:mm:ssZ")
+  const formattedVersicherungsbeginn = dayjs(versicherungsbeginn).format("YYYY-MM-DDTHH:mm:ssZ")
+
+  console.log("Formatierte Werte:")
+  console.log("   Formatiertes Geburtsdatum:", formattedGeburtsdatum)
+  console.log("   Formatierter Versicherungsbeginn:", formattedVersicherungsbeginn)
+
+  // Basis-Payload erstellen und basierend auf Alter anpassen
+  const basePayload = {
+    personenIdCounter: 1,
+    bankdaten: { iban: "" },
+    kreditkarte: {},
+    pspDaten: {},
+    personen: [
+      {
+        vorbelegungAnrede: false,
+        isDateValid: false,
+        isVornameValid: true,
+        isNachnameValid: true,
+        anrede: "Herr",
+        vorvertrag: "Kein Vorvertrag",
+        versicherungsbeginn: formattedVersicherungsbeginn,
+        gesundheitsdaten: { koerpergroesse: null, koerpergewicht: null },
+        gesundheitsfragen: {},
+        tarife: null,
+        rollen: ["VERSICHERUNGSNEHMER"],
+        id: "vn",
+        geburtsdatum: formattedGeburtsdatum
+      }
+    ],
+    zahlungsart: "bankdaten",
+    paypalEmailAdresse: null,
+    angebotsnummer: null,
+    angebotstechnummer: null,
+    pdf: null,
+    device: "Desktop",
+    oaName: "tier",
+    sparte: "BA",
+    oaSpezifisch: {
+      tierart: "Pferd",
+      erstattungssatz: "PROZENT_100",
+      geschlecht: "m",
+      zahlweise: zahlweise,
+      selbstbeteiligung: false,
+      spezialTarif: "",
+      tarif: "",
+      isKV: false,
+      showOP: true,
+      pferd: true,
+      versicherung: "op",
+      vuz: true,
+      disableSbCheckboxKv: false,
+      disableSbCheckboxOp: false,
+      showAbschlussButton: true,
+      tierartParam: "Pferd",
+      hunderasse: "",
+      hunderassenList: "",
+      geburtsdatum: formattedGeburtsdatum,
+      operationskosten: false
+    },
+    browser: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.0.0 Safari/537.36",
+    aktionsnummer: "334003",
+    emid: null
+  }
+
+  const headers = {
+    "Content-Type": "application/json",
+    Accept: "application/json, text/plain, */*",
+    Origin: "https://ssl.barmenia.de",
+    Referer: "https://ssl.barmenia.de/online-versichern/",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.0.0 Safari/537.36"
+  }
+
+  const finalResponses = {
+    opSchutzBasis: {
+      beitrag0sb: 0,
+      beitrag250sb: 0,
+      beitrag500sb: 0,
+      beitrag1000sb: 0
+    },
+    opSchutzTop: {
+      beitrag0sb: 0,
+      beitrag250sb: 0,
+      beitrag500sb: 0,
+      beitrag1000sb: 0
+    },
+    opSchutzPremium: {
+      beitrag0sb: 0,
+      beitrag250sb: 0,
+      beitrag500sb: 0,
+      beitrag1000sb: 0
+    }
+  }
+
+  try {
+    // alle tarife fetches, standard
+
+    // 1. und 2. fetch API KV ohne SB und mit sb
+
+    console.log("Fetching Data from Barmenia API...")
+
+    // OP schutz basis fetches
+    finalResponses.opSchutzBasis.beitrag0sb = await fetchOpSchutzBasis(basePayload, 0)
+    finalResponses.opSchutzBasis.beitrag250sb = await fetchOpSchutzBasis(basePayload, 250)
+    finalResponses.opSchutzBasis.beitrag500sb = await fetchOpSchutzBasis(basePayload, 500)
+    finalResponses.opSchutzBasis.beitrag1000sb = await fetchOpSchutzBasis(basePayload, 1000)
+
+    // op schutz top fetches
+    finalResponses.opSchutzTop.beitrag0sb = await fetchOpSchutzTop(basePayload, 0)
+    finalResponses.opSchutzTop.beitrag250sb = await fetchOpSchutzTop(basePayload, 250)
+    finalResponses.opSchutzTop.beitrag500sb = await fetchOpSchutzTop(basePayload, 500)
+    finalResponses.opSchutzTop.beitrag1000sb = await fetchOpSchutzTop(basePayload, 1000)
+
+    // op schutz premium fetches
+    finalResponses.opSchutzPremium.beitrag0sb = await fetchOpSchutzPremium(basePayload, 0)
+    finalResponses.opSchutzPremium.beitrag250sb = await fetchOpSchutzPremium(basePayload, 250)
+    finalResponses.opSchutzPremium.beitrag500sb = await fetchOpSchutzPremium(basePayload, 500)
+    finalResponses.opSchutzPremium.beitrag1000sb = await fetchOpSchutzPremium(basePayload, 1000)
+
+    // Final return after fetching all data
+
+    console.log("Successfully fetched all data from API. Final Response to client:")
+    console.log(JSON.stringify(finalResponses, null, 2))
+
+    return res.json(finalResponses)
+  } catch (error) {
+    console.error("Ein Fehler ist aufgetreten:", error.message)
+    if (error.response) {
+      console.error("Fehlerdetails:", error.response.data)
+    }
+    return res.status(500).json({ error: "Interner Serverfehler bei der Tarifierung" })
+  }
+
+  async function fetchOpSchutzBasis(payload, sbHöhe) {
+    console.log("stop1")
+    if (!(sbHöhe === 0 || sbHöhe === 250 || sbHöhe === 500 || sbHöhe === 1000)) {
+      console.log(sbHöhe, "hioer stop222")
+      return new Error("API-Anfrage abgebrochen: SB-Höhe wurde nicht korrekt angegeben.")
+    }
+    console.log("stop2")
+    try {
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+          selbstbeteiligungBeitrag: sbHöhe
+        }
+      }
+      console.log("stop4")
+      const response = await axios.post(apiUrlOpSchutzBasis, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Basis
+      console.log("Fetch from ", apiUrlOpSchutzBasis, " for OpSchutzBasis was successfull.")
+      return tarif[0].beitrag
+    } catch (error) {
+      console.log(error.message)
+      return "ERROR"
+    }
+  }
+
+  async function fetchOpSchutzTop(payload, sbHöhe) {
+    if (!(sbHöhe === 0 || sbHöhe === 250 || sbHöhe === 500 || sbHöhe === 1000)) {
+      return new Error("API-Anfrage abgebrochen: SB-Höhe wurde nicht korrekt angegeben.")
+    }
+    try {
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+          selbstbeteiligungBeitrag: sbHöhe
+        }
+      }
+      const response = await axios.post(apiUrlOpSchutzTop, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Top
+      console.log("Fetch from ", apiUrlOpSchutzTop, " for OpSchutzPremium was successfull.")
+      return tarif[0].beitrag
+    } catch (error) {
+      console.log(error.message)
+      return "ERROR"
+    }
+  }
+
+  async function fetchOpSchutzPremium(payload, sbHöhe) {
+    if (!(sbHöhe === 0 || sbHöhe === 250 || sbHöhe === 500 || sbHöhe === 1000)) {
+      return new Error("API-Anfrage abgebrochen: SB-Höhe wurde nicht korrekt angegeben.")
+    }
+    try {
+      const newPayload = {
+        ...payload,
+        oaSpezifisch: {
+          ...payload.oaSpezifisch,
+          selbstbeteiligungBeitrag: sbHöhe
+        }
+      }
+      const response = await axios.post(apiUrlOpSchutzPremium, newPayload, { headers })
+      const tarif = response.data.tarifBeitraege.Premium
+      console.log("Fetch from ", apiUrlOpSchutzPremium, " for OpSchutzPremium was successfull.")
+      return tarif[0].beitrag
+    } catch (error) {
+      console.log(error.message)
+      return "ERROR"
+    }
+  }
+})
+
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
+//
 //
 //
 //
